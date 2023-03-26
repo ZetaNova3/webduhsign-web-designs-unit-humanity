@@ -1,1 +1,102 @@
-name: Webduh LLC Webduhsign.com Web Designs Unit Humanity CI on: [push] env: REPO_DIR: repos jobs: build: runs-on: ubuntu-latest steps: - name: Checkout code uses: actions/checkout@v2 - name: Set up Python uses: actions/setup-python@v2 with: python-version: 3.x - name: Create virtual environment run: | python3 -m venv env source env/bin/activate - name: Install required packages run: | pip install Flask Flask-Login Flask-Migrate Flask-WTF SQLAlchemy - name: Create application factory function run: | touch app/__init__.py echo ' from flask import Flask from flask_sqlalchemy import SQLAlchemy from flask_migrate import Migrate from flask_login import LoginManager db = SQLAlchemy() migrate = Migrate() login = LoginManager() def create_app(config_class): app = Flask(__name__) app.config.from_object(config_class) db.init_app(app) migrate.init_app(app, db) login.init_app(app) from app.routes.main_routes import main_routes app.register_blueprint(main_routes) from app.errors import error_routes app.register_blueprint(error_routes) return app ' > app/__init__.py - name: Set up database run: | touch app/models.py echo ' from app import db, login from werkzeug.security import generate_password_hash, check_password_hash from flask_login import UserMixin class User(UserMixin, db.Model): id = db.Column(db.Integer, primary_key=True) username = db.Column(db.String(64), index=True, unique=True) email = db.Column(db.String(120), index=True, unique=True) password_hash = db.Column(db.String(128)) def __repr__(self): return f'<User {self.username}>' def set_password(self, password): self.password_hash = generate_password_hash(password) def check_password(self, password): return check_password_hash(self.password_hash, password) @login.user_loader def load_user(id): return User.query.get(int(id)) ' > app/models.py python -m flask db init python -m flask db migrate python -m flask db upgrade - name: Create templates directory run: | mkdir -p app/templates/repository mkdir -p app/templates/user - name: Install additional dependencies run: | pip install gunicorn - name: Deploy as microservice run: | gunicorn "app:create_app('config.ProductionConfig')" -b 0.0.0.0:$PORT --workers=4 --preload
+name: Webduh LLC Webduhsign.com Web Designs Unit Humanity CI
+
+on:
+  push
+
+env:
+  REPO_DIR: repos
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Create virtual environment
+        run: |
+          python3 -m venv env
+          source env/bin/activate
+
+      - name: Install required packages
+        run: |
+          pip install Flask Flask-Login Flask-Migrate Flask-WTF SQLAlchemy
+
+      - name: Create application factory function
+        run: |
+          touch app/__init__.py
+          echo ' 
+          from flask import Flask
+          from flask_sqlalchemy import SQLAlchemy
+          from flask_migrate import Migrate
+          from flask_login import LoginManager
+          
+          db = SQLAlchemy()
+          migrate = Migrate()
+          login = LoginManager()
+
+          def create_app(config_class):
+              app = Flask(__name__)
+              app.config.from_object(config_class)
+              db.init_app(app)
+              migrate.init_app(app, db)
+              login.init_app(app)
+
+              from app.routes.main_routes import main_routes
+              app.register_blueprint(main_routes)
+
+              from app.errors import error_routes
+              app.register_blueprint(error_routes)
+
+              return app 
+          ' > app/__init__.py
+
+      - name: Set up database
+        run: |
+          touch app/models.py
+          echo '
+          from app import db, login
+          from werkzeug.security import generate_password_hash, check_password_hash
+          from flask_login import UserMixin
+
+          class User(UserMixin, db.Model):
+              id = db.Column(db.Integer, primary_key=True)
+              username = db.Column(db.String(64), index=True, unique=True)
+              email = db.Column(db.String(120), index=True, unique=True)
+              password_hash = db.Column(db.String(128))
+
+              def __repr__(self):
+                  return f'<User {self.username}>'
+
+              def set_password(self, password):
+                  self.password_hash = generate_password_hash(password)
+
+              def check_password(self, password):
+                  return check_password_hash(self.password_hash, password)
+
+          @login.user_loader
+          def load_user(id):
+              return User.query.get(int(id))
+          ' > app/models.py
+
+          python -m flask db init
+          python -m flask db migrate
+          python -m flask db upgrade
+
+      - name: Create templates directory
+        run: |
+          mkdir -p app/templates/repository
+          mkdir -p app/templates/user
+
+      - name: Install additional dependencies
+        run: |
+          pip install gunicorn
+
+      - name: Deploy as microservice
+        run: |
+          gunicorn "app:create_app('config.ProductionConfig')" -b 0.0.0.0:$PORT --workers=4 --preload
