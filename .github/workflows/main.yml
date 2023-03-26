@@ -1,3 +1,30 @@
+mkdir -p app
+touch app/__init__.py
+echo ' 
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_login import LoginManager
+
+db = SQLAlchemy()
+migrate = Migrate()
+login = LoginManager()
+
+def create_app(config_class):
+    app = Flask(__name__)
+    app.config.from_object(config_class)
+    db.init_app(app)
+    migrate.init_app(app, db)
+    login.init_app(app)
+
+    from app.routes.main_routes import main_routes
+    app.register_blueprint(main_routes)
+
+    from app.errors import error_routes
+    app.register_blueprint(error_routes)
+
+    return app 
+' > app/__init__.py
 name: Webduh LLC Webduhsign.com Web Designs Unit Humanity CI
 on:
   push:
