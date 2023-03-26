@@ -81,7 +81,6 @@ jobs:
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
         flags: unittests
-name: Webduh LLC Webduhsign.com Web Designs Unit Humanity CI
 
 on:
   push:
