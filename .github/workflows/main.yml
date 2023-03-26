@@ -1,105 +1,112 @@
-name: Webduh LLC Webduhsign.com Web Designs Unit Humanity CI
+mkdir Webduhsign
+cd Webduhsign
+python3 -m venv env
+source env/bin/activate
 
-on:
-  push:
-    branches:
-      - main
+# install required packages
+pip install Flask Flask-Login Flask-Migrate Flask-WTF SQLAlchemy gunicorn
 
-env:
-  REPO_DIR: repos
+# create directory structure
+mkdir app
+mkdir app/routes
+mkdir app/templates
+mkdir app/templates/repository
+mkdir app/templates/user
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+# create __init__.py
+echo '
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from flask_login import LoginManager
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+db = SQLAlchemy()
+migrate = Migrate()
+login = LoginManager()
 
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.x
+def create_app(config_class):
+    app = Flask(__name__)
+    app.config.from_object(config_class)
+    db.init_app(app)
+    migrate.init_app(app, db)
+    login.init_app(app)
 
-      - name: Create virtual environment
-        run: |
-          python3 -m venv env
-          source env/bin/activate
+    from app.routes.main_routes import main_routes
+    app.register_blueprint(main_routes)
 
-      - name: Install required packages
-        run: |
-          pip install Flask Flask-Login Flask-Migrate Flask-WTF SQLAlchemy
+    from app.errors import error_routes
+    app.register_blueprint(error_routes)
 
-      - name: Create application factory function
-        run: |
-          mkdir -p app
-          touch app/__init__.py
-          echo ' 
-          from flask import Flask
-          from flask_sqlalchemy import SQLAlchemy
-          from flask_migrate import Migrate
-          from flask_login import LoginManager
-  
-          db = SQLAlchemy()
-          migrate = Migrate()
-          login = LoginManager()
-  
-          def create_app(config_class):
-              app = Flask(__name__)
-              app.config.from_object(config_class)
-              db.init_app(app)
-              migrate.init_app(app, db)
-              login.init_app(app)
-  
-              from app.routes.main_routes import main_routes
-              app.register_blueprint(main_routes)
-  
-              from app.errors import error_routes
-              app.register_blueprint(error_routes)
-  
-              return app 
-          ' > app/__init__.py
+    return app
+' > app/__init__.py
 
-      - name: Set up database
-        run: |
-          touch app/models.py
-          echo '
-          from app import db, login
-          from werkzeug.security import generate_password_hash, check_password_hash
-          from flask_login import UserMixin
-  
-          class User(UserMixin, db.Model):
-              id = db.Column(db.Integer, primary_key=True)
-              username = db.Column(db.String(64), index=True, unique=True)
-              email = db.Column(db.String(120), index=True, unique=True)
-              password_hash = db.Column(db.String(128))
-  
-              def __repr__(self):
-                  return f'<User {self.username}>'
-  
-              def set_password(self, password):
-                  self.password_hash = generate_password_hash(password)
-  
-              def check_password(self, password):
-                  return check_password_hash(self.password_hash, password)
-  
-          @login.user_loader
-          def load_user(id):
-              return User.query.get(int(id))
-          ' > app/models.py
-          python -m flask db init
-          python -m flask db migrate
-          python -m flask db upgrade
+# create models.py
+echo '
+from app import db, login
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin
 
-      - name: Create templates directory
-        run: |
-          mkdir -p app/templates/repository
-          mkdir -p app/templates/user
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(64), index=True, unique=True)
+    email = db.Column(db.String(120), index=True, unique=True)
+    password_hash = db.Column(db.String(128))
 
-      - name: Install additional dependencies
-        run: |
-          pip install gunicorn
+    def __repr__(self):
+        return f"<User {self.username}>"
 
-      - name: Deploy as microservice
-        run: |
-          gunicorn "app:create_app('config.ProductionConfig')" -b 0.0.0.0:$PORT --workers=4 --preload
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+@login.user_loader
+def load_user(id):
+    return User.query.get(int(id))
+' > app/models.py
+
+# create routes folder and main_routes.py
+echo '
+from flask import Blueprint
+
+main_routes = Blueprint("main_routes", __name__)
+
+@main_routes.route("/")
+def index():
+    return "Hello, World!"
+' > app/routes/main_routes.py
+
+# create errors.py
+echo '
+from flask import Blueprint
+
+error_routes = Blueprint("error_routes", __name__)
+
+@error_routes.app_errorhandler(404)
+def page_not_found(error):
+    return "This page does not exist", 404
+
+@error_routes.app_errorhandler(500)
+def server_error(error):
+    return "An internal server error occurred", 500
+' > app/errors.py
+
+# create config.py
+echo '
+import os
+
+class Config(object):
+    SECRET_KEY = os.environ.get("SECRET_KEY") or "hard to guess string"
+
+    # database configuration
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL") or \
+        "sqlite:///" + os.path.join(os.path.abspath(os.path.dirname(__file__)), "app.db")
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+' > config.py
+
+# initialize database
+export FLASK_APP=app
+flask db init
+flask db migrate
+flask db upgrade
