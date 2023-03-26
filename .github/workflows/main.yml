@@ -1,112 +1,32 @@
-mkdir Webduhsign
-cd Webduhsign
-python3 -m venv env
-source env/bin/activate
+name: Deploy Website
 
-# install required packages
-pip install Flask Flask-Login Flask-Migrate Flask-WTF SQLAlchemy gunicorn
+on:
+  push:
+    branches:
+      - main
 
-# create directory structure
-mkdir app
-mkdir app/routes
-mkdir app/templates
-mkdir app/templates/repository
-mkdir app/templates/user
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
 
-# create __init__.py
-echo '
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
-from flask_login import LoginManager
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
 
-db = SQLAlchemy()
-migrate = Migrate()
-login = LoginManager()
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y nodejs
+          sudo apt-get install -y npm
+          npm install -g sass
+          npm install -g postcss-cli
+          npm install
 
-def create_app(config_class):
-    app = Flask(__name__)
-    app.config.from_object(config_class)
-    db.init_app(app)
-    migrate.init_app(app, db)
-    login.init_app(app)
+      - name: Generate Static Pages
+        run: |
+          bash generate_pages.sh
 
-    from app.routes.main_routes import main_routes
-    app.register_blueprint(main_routes)
-
-    from app.errors import error_routes
-    app.register_blueprint(error_routes)
-
-    return app
-' > app/__init__.py
-
-# create models.py
-echo '
-from app import db, login
-from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import UserMixin
-
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(64), index=True, unique=True)
-    email = db.Column(db.String(120), index=True, unique=True)
-    password_hash = db.Column(db.String(128))
-
-    def __repr__(self):
-        return f"<User {self.username}>"
-
-    def set_password(self, password):
-        self.password_hash = generate_password_hash(password)
-
-    def check_password(self, password):
-        return check_password_hash(self.password_hash, password)
-
-@login.user_loader
-def load_user(id):
-    return User.query.get(int(id))
-' > app/models.py
-
-# create routes folder and main_routes.py
-echo '
-from flask import Blueprint
-
-main_routes = Blueprint("main_routes", __name__)
-
-@main_routes.route("/")
-def index():
-    return "Hello, World!"
-' > app/routes/main_routes.py
-
-# create errors.py
-echo '
-from flask import Blueprint
-
-error_routes = Blueprint("error_routes", __name__)
-
-@error_routes.app_errorhandler(404)
-def page_not_found(error):
-    return "This page does not exist", 404
-
-@error_routes.app_errorhandler(500)
-def server_error(error):
-    return "An internal server error occurred", 500
-' > app/errors.py
-
-# create config.py
-echo '
-import os
-
-class Config(object):
-    SECRET_KEY = os.environ.get("SECRET_KEY") or "hard to guess string"
-
-    # database configuration
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL") or \
-        "sqlite:///" + os.path.join(os.path.abspath(os.path.dirname(__file__)), "app.db")
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-' > config.py
-
-# initialize database
-export FLASK_APP=app
-flask db init
-flask db migrate
-flask db upgrade
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
