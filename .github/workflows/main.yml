@@ -21,7 +21,7 @@ jobs:
         run: |
           npm install -g markdown-to-json
           npm install -g handlebars
-          npm install
+          npm install --save-dev prettier
 
       - name: Generate Pages Script
         run: |
@@ -36,13 +36,20 @@ jobs:
           echo '' >> generate_pages.sh
           echo 'echo "Pages Generated!"' >> generate_pages.sh
 
+          echo '' >> generate_pages.sh
+          echo 'prettier --write ./public/index.html' >> generate_pages.sh
+
+          echo '' >> generate_pages.sh
+          echo 'echo "HTML formatted with Prettier!"' >> generate_pages.sh
+
+          chmod +x ./generate_pages.sh
+
       - name: Build Pages
         run: |
-          chmod +x ./generate_pages.sh
           ./generate_pages.sh
           
       - name: Deploy Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
-          personal_token: ${{ secrets.PERSONAL_TOKEN }}
+          personal_token: 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
           publish_dir: ./public
